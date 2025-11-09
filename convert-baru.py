@@ -106,33 +106,49 @@ def check_for_updates(api, last_commit_sha):
         log(f"Update check failed: {e}", Color.YELLOW, "WARN")
         return False, last_commit_sha
 
-
 def download_model():
-    """Download model from HuggingFace with all required files"""
+    """Download model and tokenizer files"""
     log("Downloading model from HuggingFace...", Color.BLUE)
     
     try:
         TEMP_DIR.mkdir(exist_ok=True)
         
+        # Download model weights dari repo Anda
+        log("Downloading model weights...", Color.BLUE)
         snapshot_download(
             repo_id=REPO_ID,
             local_dir=str(TEMP_DIR),
-            ignore_patterns=["*.git*", "*.md", "README"],
+            allow_patterns=["*.safetensors", "*.json"],
             token=HF_TOKEN
         )
         
-        # Verify critical files exist
+        # Verify model file
         if not (TEMP_DIR / "model.safetensors").exists():
             log("model.safetensors not found!", Color.RED, "ERROR")
             return False
         
-        log("Model downloaded successfully", Color.GREEN)
+        # Download tokenizer dari base Qwen3-0.6B
+        log("Downloading tokenizer from Qwen/Qwen3-0.6B...", Color.BLUE)
+        snapshot_download(
+            repo_id="Qwen/Qwen3-0.6B",
+            local_dir=str(TEMP_DIR),
+            allow_patterns=[
+                "vocab.json",
+                "merges.txt",
+                "tokenizer.json",
+                "tokenizer_config.json",
+                "special_tokens_map.json",
+                "added_tokens.json"
+            ],
+            token=HF_TOKEN
+        )
+        
+        log("Model and tokenizer downloaded successfully", Color.GREEN)
         return True
         
     except Exception as e:
         log(f"Download failed: {e}", Color.RED, "ERROR")
         return False
-
 
 def convert_to_f16(output_file):
     """Convert model to F16 GGUF format"""
