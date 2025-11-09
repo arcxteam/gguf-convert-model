@@ -10,6 +10,8 @@ import time
 import subprocess
 import shutil
 import threading
+import contextlib
+import io
 from pathlib import Path
 from datetime import datetime
 from huggingface_hub import HfApi, snapshot_download, list_repo_commits
@@ -29,6 +31,10 @@ QUANTS = [q.strip() for q in QUANT_TYPES_STR.split(",") if q.strip()]
 
 TEMP_DIR = Path("./temp_model")
 BASE_MODEL_NAME = "Qwen3-0.6B-Gensyn-Swarm"
+
+# Suppress HuggingFace telemetry
+os.environ["HF_HUB_DISABLE_PROGRESS_BARS"] = "1"
+os.environ["HF_HUB_DISABLE_TELEMETRY"] = "1"
 
 
 # ==================== ANSI Colors ====================
@@ -63,17 +69,14 @@ class ProgressTracker:
         
     def report_milestone(self, percentage):
         """Report progress at milestone percentages"""
-        milestone = (percentage // 25) * 25  # 0, 25, 50, 75, 100
+        milestone = (percentage // 25) * 25
         
         if milestone not in self.reported_milestones and milestone > 0:
             self.reported_milestones.add(milestone)
             elapsed = time.time() - self.start_time
             
             size_info = f" ({self.file_size_mb:.1f} MB)" if self.file_size_mb else ""
-            speed_info = ""
-            
-            if milestone == 100:
-                speed_info = f" in {elapsed:.1f}s"
+            speed_info = f" in {elapsed:.1f}s" if milestone == 100 else ""
             
             log(
                 f"{self.operation_name}: {milestone}%{size_info}{speed_info}",
@@ -82,6 +85,22 @@ class ProgressTracker:
 
 
 # ==================== Helper Functions ====================
+@contextlib.contextmanager
+def suppress_hf_output():
+    """Completely suppress HuggingFace progress bars and output"""
+    original_stdout = sys.stdout
+    original_stderr = sys.stderr
+    
+    sys.stdout = io.StringIO()
+    sys.stderr = io.StringIO()
+    
+    try:
+        yield
+    finally:
+        sys.stdout = original_stdout
+        sys.stderr = original_stderr
+
+
 def cleanup_temp_files(temp_dir, gguf_file=None):
     """Remove temporary files and directories"""
     try:
@@ -141,58 +160,59 @@ def check_for_updates(api, last_commit_sha):
 
 
 def download_model():
-    """Download model and tokenizer files with progress tracking"""
+    """Download model and tokenizer files with clean progress"""
     log("Downloading model from HuggingFace...", Color.BLUE)
     
     try:
         TEMP_DIR.mkdir(exist_ok=True)
         
-        # Suppress HF progress bars
-        import logging
-        logging.getLogger("huggingface_hub.file_download").setLevel(logging.ERROR)
-        
         tracker = ProgressTracker("Download")
+        download_done = threading.Event()
         
-        # Simulate progress tracking (snapshot_download doesn't provide callbacks)
         def track_download():
             for milestone in [25, 50, 75]:
-                time.sleep(3)
+                if download_done.is_set():
+                    break
+                time.sleep(4)
                 tracker.report_milestone(milestone)
         
         thread = threading.Thread(target=track_download, daemon=True)
         thread.start()
         
-        # Download model weights
-        snapshot_download(
-            repo_id=REPO_ID,
-            local_dir=str(TEMP_DIR),
-            allow_patterns=["*.safetensors", "*.json"],
-            token=HF_TOKEN
-        )
+        with suppress_hf_output():
+            snapshot_download(
+                repo_id=REPO_ID,
+                local_dir=str(TEMP_DIR),
+                allow_patterns=["*.safetensors", "*.json"],
+                token=HF_TOKEN
+            )
+            
+            if not (TEMP_DIR / "model.safetensors").exists():
+                download_done.set()
+                log("model.safetensors not found!", Color.RED, "ERROR")
+                return False
+            
+            snapshot_download(
+                repo_id="Qwen/Qwen3-0.6B",
+                local_dir=str(TEMP_DIR),
+                allow_patterns=[
+                    "vocab.json",
+                    "merges.txt",
+                    "tokenizer.json",
+                    "tokenizer_config.json",
+                    "special_tokens_map.json"
+                ],
+                token=HF_TOKEN
+            )
         
-        if not (TEMP_DIR / "model.safetensors").exists():
-            log("model.safetensors not found!", Color.RED, "ERROR")
-            return False
-        
-        # Download tokenizer
-        snapshot_download(
-            repo_id="Qwen/Qwen3-0.6B",
-            local_dir=str(TEMP_DIR),
-            allow_patterns=[
-                "vocab.json",
-                "merges.txt",
-                "tokenizer.json",
-                "tokenizer_config.json",
-                "special_tokens_map.json"
-            ],
-            token=HF_TOKEN
-        )
-        
+        download_done.set()
         tracker.report_milestone(100)
         log("✓ Model and tokenizer downloaded", Color.GREEN)
         return True
         
     except Exception as e:
+        if 'download_done' in locals():
+            download_done.set()
         log(f"Download failed: {e}", Color.RED, "ERROR")
         return False
 
@@ -208,7 +228,6 @@ def convert_to_f16(output_file):
         "--outfile", output_file
     ]
     
-    # Track conversion progress
     tracker = ProgressTracker("Conversion")
     
     def track_conversion():
@@ -232,7 +251,7 @@ def convert_to_f16(output_file):
 
 
 def quantize_model(input_file, output_file, quant_type):
-    """Quantize GGUF model to specified quantization type"""
+    """Quantize GGUF model"""
     log(f"Quantizing to {quant_type}...", Color.BLUE)
     
     cmd = [LLAMA_QUANTIZE, input_file, output_file, quant_type]
@@ -260,7 +279,7 @@ def quantize_model(input_file, output_file, quant_type):
 
 
 def upload_to_hf(file_path, commit_msg):
-    """Upload file to HuggingFace with progress tracking"""
+    """Upload file to HuggingFace with clean progress tracking"""
     try:
         api = HfApi(token=HF_TOKEN)
         filename = Path(file_path).name
@@ -268,38 +287,42 @@ def upload_to_hf(file_path, commit_msg):
         
         log(f"Uploading {filename} ({file_size_mb:.1f} MB)...", Color.BLUE)
         
-        # Track upload progress
         tracker = ProgressTracker(f"Upload {filename}", file_size_mb)
+        upload_done = threading.Event()
         
         def track_upload():
-            # Estimate upload time based on file size (assume ~30MB/s)
             estimated_time = file_size_mb / 30
-            for milestone in [25, 50, 75]:
-                time.sleep(estimated_time * (milestone / 100))
-                tracker.report_milestone(milestone)
+            start = time.time()
+            
+            while not upload_done.is_set():
+                elapsed = time.time() - start
+                if elapsed >= estimated_time * 0.25 and 25 not in tracker.reported_milestones:
+                    tracker.report_milestone(25)
+                elif elapsed >= estimated_time * 0.50 and 50 not in tracker.reported_milestones:
+                    tracker.report_milestone(50)
+                elif elapsed >= estimated_time * 0.75 and 75 not in tracker.reported_milestones:
+                    tracker.report_milestone(75)
+                time.sleep(1)
         
         thread = threading.Thread(target=track_upload, daemon=True)
         thread.start()
         
-        # Suppress HF upload progress
-        import logging
-        old_level = logging.getLogger("huggingface_hub").level
-        logging.getLogger("huggingface_hub").setLevel(logging.ERROR)
+        with suppress_hf_output():
+            api.upload_file(
+                path_or_fileobj=file_path,
+                path_in_repo=filename,
+                repo_id=REPO_ID,
+                commit_message=commit_msg
+            )
         
-        api.upload_file(
-            path_or_fileobj=file_path,
-            path_in_repo=filename,
-            repo_id=REPO_ID,
-            commit_message=commit_msg
-        )
-        
-        logging.getLogger("huggingface_hub").setLevel(old_level)
-        
+        upload_done.set()
         tracker.report_milestone(100)
         log(f"✓ {filename} uploaded", Color.GREEN)
         return True
         
     except Exception as e:
+        if 'upload_done' in locals():
+            upload_done.set()
         log(f"Upload failed: {e}", Color.RED, "ERROR")
         return False
 
@@ -314,18 +337,14 @@ def convert_and_upload():
     base_gguf = f"{BASE_MODEL_NAME}-F16.gguf"
     
     try:
-        # Step 1: Download
         if not download_model():
             return False
         
-        # Step 2: Convert to F16
         if not convert_to_f16(base_gguf):
             return False
         
-        # Step 3: Upload F16
-        upload_to_hf(base_gguf, "🔄 Auto-update: GGUF F16")
+        upload_to_hf(base_gguf, "Auto-update: GGUF F16")
         
-        # Step 4: Quantize and Upload variants
         for quant in QUANTS:
             if quant == "F16":
                 continue
@@ -333,7 +352,7 @@ def convert_and_upload():
             output_file = f"{BASE_MODEL_NAME}-{quant}.gguf"
             
             if quantize_model(base_gguf, output_file, quant):
-                upload_to_hf(output_file, f"🔄 Auto-update: GGUF {quant}")
+                upload_to_hf(output_file, f"Auto-update: GGUF {quant}")
                 Path(output_file).unlink()
         
         log("=" * 70, Color.GREEN)
