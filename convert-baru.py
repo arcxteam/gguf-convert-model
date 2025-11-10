@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
-GGUF Auto-Converter for Gensyn RL-Swarm
-Automatically converts HuggingFace model to GGUF format with multiple quantizations
+GGUF Auto-Converter for all HuggingFace model 
+to GGUF format with multiple quantizations
 """
 
 import os
@@ -415,7 +415,7 @@ def main():
             time.sleep(CHECK_INTERVAL)
             
         except KeyboardInterrupt:
-            log("🛑 Shutdown signal received", Color.RED)
+            log("Shutdown signal received", Color.RED)
             log("Stopping GGUF Auto-Converter... Goodbye!", Color.BLUE)
             break
             
