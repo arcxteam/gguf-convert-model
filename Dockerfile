@@ -31,7 +31,7 @@ WORKDIR /app
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
-COPY convert_to_gguf.py .
+COPY convert_gguf.py .
 COPY start.sh .
 RUN chmod +x start.sh
 
