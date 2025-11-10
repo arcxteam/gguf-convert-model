@@ -32,7 +32,23 @@ datasets:
 inference: true
 model-index:
 - name: Qwen3-0.6B-Gensyn-Swarm-tall_tame_panther
-  results: []
+  results:
+  - task:
+      type: text-generation
+      name: Mathematical Reasoning
+    dataset:
+      name: Composite Reasoning Dataset
+      type: custom
+    metrics:
+    - type: training_rounds
+      value: 43610
+      name: Completed Training Rounds
+    - type: total_rounds
+      value: 100000
+      name: Target Rounds
+    - type: progress
+      value: 43.61
+      name: Training Progress (%)
 widget:
 - text: "What is 15 * 23?"
   example_title: "Basic Arithmetic"
@@ -51,12 +67,12 @@ widget:
 
 ## Model Overview
 
-This model is a continuously trained Qwen3-0.6B fine-tuned using **Gensyn RL-Swarm** framework with **GRPO (Generalized Reward Policy Optimization)** for enhanced reasoning and mathematical capabilities.
+This model is a continuously trained Qwen3-0.6B fine-tuned using **Gensyn RL-Swarm** framework with **GRPO (Generalized Reward Policy Optimization)** for enhanced reasoning and mathematical capabilities. **Note: Current training focuses on math/reasoning tasks**.
 
 **Agent ID:** `tall_tame_panther`  
-**Training Status:** 🔴 LIVE - Model updates automatically every 5-10 minutes  
-**Current Progress:** Round 43610+ / 1,000,000  
-**Framework Version:** Gensyn RL-Swarm v0.4.2  
+**Training Status:** 🟢 LIVE - Model updates automatically every 5-10 minutes  
+**Current Progress:** Round 43,610+ / 100,000 (43,61%)  
+**Framework Version:** Gensyn RL-Swarm v0.6.4 
 **Contract:** SwarmCoordinator v0.4.2
 
 ## Key Features
@@ -67,60 +83,24 @@ This model is a continuously trained Qwen3-0.6B fine-tuned using **Gensyn RL-Swa
 - **llama.cpp Compatible**: Ready for edge deployment and local inference
 - **BF16 Precision**: Trained with bfloat16 for optimal performance
 - **TGI Compatible**: Supports Text Generation Inference for production deployment
-- **Conversational**: Can be used for interactive reasoning tasks
+- **Chat Format Support**: Inherits Qwen3 chat template for conversational use
 
 ## Training Data
 
-The model is trained on a composite dataset (1,000 samples) with weighted sampling strategy defined in `datasets.yaml`:
+The model is trained on a composite dataset (1,000 samples) with weighted sampling strategy:
 
-| Dataset | Weight | Samples | Focus Area |
-|---------|--------|---------|------------|
-| Propositional Logic | 7 | 500 | Logical reasoning, truth tables, Boolean operations |
-| Calendar Arithmetic | 6 | 500 | Date calculations, leap years, recurring events |
-| Decimal Arithmetic | 5 | 500 | Multi-term decimal operations with precision |
-| Base Conversion | 4 | 500 | Number system conversions (base 2-16) |
-| Fraction Simplification | 4 | 500 | GCD/LCM, fraction reduction |
-| Basic Arithmetic | 2 | 500 | Foundation operations with parentheses |
+| Dataset | Weight | Focus Area |
+|---------|--------|------------|
+| Propositional Logic | 7 | Logical reasoning, truth tables, Boolean operations |
+| Calendar Arithmetic | 6 | Date calculations, leap years, recurring events |
+| Decimal Arithmetic | 5 | Multi-term decimal operations with precision |
+| Base Conversion | 4 | Number system conversions (base 2-16) |
+| Fraction Simplification | 4 | GCD/LCM, fraction reduction |
+| Basic Arithmetic | 2 | Foundation operations with parentheses |
 
 **Total Dataset Size:** 1,000 composite samples  
 **Training Samples per Round:** 2  
-**Evaluation Samples:** Real-time via swarm coordination
-
-### Dataset Configuration Details
-
-```
-# From rgym_exp/src/datasets.yaml
-Propositional Logic:
-  - Variables: 2-4
-  - Statements: 2-4
-  - Complexity: 1-3
-
-Calendar Arithmetic:
-  - Year: 2023
-  - Offset: up to 100 days
-  - Leap year range: 200 years
-  - Tasks: count_days, weekday_of_date, is_leap_year, recurring_event_day
-
-Decimal Arithmetic:
-  - Terms: 2-6
-  - Decimal places: 1-3
-  - Precision: 5
-
-Base Conversion:
-  - Base range: 2-16
-  - Value range: 0-1000
-
-Fraction Simplification:
-  - Value range: 1-100
-  - Factor range: 2-100
-  - Styles: plain, latex_frac, latex_dfrac
-
-Basic Arithmetic:
-  - Terms: 2-6
-  - Digits: 1-4
-  - Operators: +, -, *, /
-  - Parentheses: enabled
-```
+**Evaluation:** Real-time via swarm coordination
 
 ## Quick Start
 
@@ -136,11 +116,29 @@ model = AutoModelForCausalLM.from_pretrained(
 )
 tokenizer = AutoTokenizer.from_pretrained("0xgr3y/Qwen3-0.6B-Gensyn-Swarm-tall_tame_panther")
 
-# Example: Math reasoning
 prompt = "What is 3/4 simplified to lowest terms?"
 inputs = tokenizer(prompt, return_tensors="pt").to(model.device)
 outputs = model.generate(**inputs, max_length=256, temperature=0.6, top_p=0.95)
 print(tokenizer.decode(outputs, skip_special_tokens=True))
+```
+
+### Chat Format (Conversational)
+
+```
+from transformers import AutoModelForCausalLM, AutoTokenizer
+
+model = AutoModelForCausalLM.from_pretrained("0xgr3y/Qwen3-0.6B-Gensyn-Swarm-tall_tame_panther")
+tokenizer = AutoTokenizer.from_pretrained("0xgr3y/Qwen3-0.6B-Gensyn-Swarm-tall_tame_panther")
+
+messages = [
+    {"role": "system", "content": "You are a helpful math tutor."},
+    {"role": "user", "content": "Explain how to simplify 24/36 step by step."}
+]
+
+text = tokenizer.apply_chat_template(messages, tokenize=False, add_generation_prompt=True)
+inputs = tokenizer(text, return_tensors="pt")
+outputs = model.generate(**inputs, max_length=512)
+print(tokenizer.decode(outputs))
 ```
 
 ### Text Generation Inference (TGI)
@@ -196,205 +194,239 @@ ollama run qwen3-swarm "What is 15 multiplied by 23?"
 
 All GGUF formats are **llama.cpp compatible** and auto-updated hourly.
 
+### GGUF Quantization Strategy
+
+The Q5_K_M format uses mixed precision for optimal quality:
+
+- **Token Embeddings**: Q6_K (high quality vocab representation)
+- **Attention Weights**: Q5_K (balanced quality/size)
+- **Feed-Forward**: Q5_K/Q6_K (mixed for optimal performance)
+- **Layer Norms**: F32 (full precision for stability)
+
+This strategy ensures minimal quality loss while maintaining small file size.
+
+## Chat Format & Conversational Use
+
+This model inherits **Qwen3's chat template** for structured conversations.
+
+### Format Structure
+
+```
+<|im_start|>system
+{system_message}
+<|im_end|>
+<|im_start|>user
+{user_message}
+<|im_end|>
+<|im_start|>assistant
+{assistant_response}
+<|im_end|>
+```
+
+### Chat Template Features
+
+- **System Instructions**: Guide model behavior with system messages
+- **Multi-turn Dialogue**: Maintains conversation context
+- **Tool Calling**: Support function calling (if enabled in training)
+- **Reasoning Mode**: `<think>` tags for chain-of-thought (experimental)
+
+**Note**: While the model supports chat format structurally, optimal conversational performance depends on whether training data included formatted dialogues. Current training focuses on **math/reasoning tasks**.
+
 ## Training Configuration
 
 ### Gensyn RL-Swarm Architecture
 
-The model is trained using a decentralized reinforcement learning framework with the following components:
-
 ```
-# From rgym_exp/config/rg-swarm.yaml
-
 Training Framework:
   Method: GRPO (Generalized Reward Policy Optimization)
   Base Model: Qwen/Qwen3-0.6B
   Training Regime: bfloat16 mixed precision
-  Max Rounds: 1,000,000
-  Max Stage: 1
+  Max Rounds: 100,000
   Update Frequency: Every 5-10 minutes
   Generations per Round: 2
-  Transplant Trees: 1
   Seed: 42
 
 Blockchain Integration:
   Network: Gensyn Testnet
   Chain ID: 685685
-  RPC: https://gensyn-testnet.g.alchemy.com/public
   Contract: SwarmCoordinator v0.4.2
-  Modal Proxy: http://localhost:3000/api/
 
 Swarm Communication:
   Framework: Hivemind P2P Backend
   Initial Peers: 3 bootnodes
-  Bootnodes:
-    - /ip4/38.101.215.12/tcp/30011/p2p/QmQ2gEXoPJg6iMBSUFWGzAabS2VhnzuS782Y637hGjfsRJ
-    - /ip4/38.101.215.13/tcp/30012/p2p/QmWhiaLrx3HRZfgXc2i7KW5nMUNK7P9tRc71yFJdGEZKkC
-    - /ip4/38.101.215.14/tcp/30013/p2p/QmQa1SCfYTxx7RvU7qJJRo79Zm1RAwPpkeLueDVJuBBmFp
-  Startup Timeout: 120s
-  Beam Size: 25
+  Beam Size: 30
 
 Reward System:
   Manager: DefaultRewardManager
-  Function Store: RoundRewardFnStore
-  Reward Function: RGRewards (Reasoning Gym Rewards)
-  Judge: Swarm Judge API (https://swarm-judge.internal-apps-central1.clusters.gensyn.ai)
+  Reward Function: RGRewards (Reasoning Gym)
+  Judge API: https://swarm-judge.internal-apps-central1.clusters.gensyn.ai
 ```
 
-### Training Hyperparameters
+### Model Hyperparameters
 
 ```
-Model Architecture:
+Architecture:
   Hidden Size: 1024
   Intermediate Size: 3072
-  Num Hidden Layers: 28
-  Num Attention Heads: 16
-  Num Key-Value Heads: 8
+  Layers: 28
+  Attention Heads: 16
+  KV Heads: 8
   Head Dimension: 128
-  Max Position Embeddings: 40,960
-  RMS Norm Epsilon: 1e-06
-  Rope Theta: 1,000,000
-  Vocabulary Size: 151,936
+  Context Length: 40,960 tokens
+  Vocabulary: 151,936 tokens
 
-GRPO Trainer Config:
+GRPO Config:
   Epsilon: 0.2
   Epsilon High: 0.28
-  Generations: 2
   Gradient Checkpointing: Enabled
-  Learning Rate: Adaptive
   
-Generation Config:
+Generation:
   Temperature: 0.6
   Top-K: 20
   Top-P: 0.95
-  BOS Token: 151643
-  EOS Token: 151645
-  Pad Token: 151643
 ```
 
 ## Model Capabilities
 
 This model excels at:
 
-1. **Logical Reasoning**: Propositional logic, truth evaluation, Boolean algebra, logical equivalences
-2. **Mathematical Operations**: Multi-precision arithmetic, decimal calculations, fraction manipulation
-3. **Number Systems**: Base conversion between binary, octal, decimal, hexadecimal
-4. **Date/Time Calculations**: Calendar arithmetic, leap year detection, day-of-week calculations
-5. **Step-by-step Problem Solving**: Chain-of-thought reasoning for complex multi-step tasks
-6. **Conversational Math Tutoring**: Interactive problem-solving guidance
+1. **Logical Reasoning**: Propositional logic, truth evaluation, Boolean algebra
+2. **Mathematical Operations**: Multi-precision arithmetic, decimal calculations, fractions
+3. **Number Systems**: Base conversion (binary, octal, decimal, hexadecimal)
+4. **Date/Time Calculations**: Calendar arithmetic, leap years, day-of-week
+5. **Step-by-step Problem Solving**: Chain-of-thought reasoning
+6. **Conversational Tutoring**: Interactive problem-solving (via chat format)
 
 ## Limitations
 
-- **Specialized Domain**: Optimized for reasoning/math tasks; may underperform on creative writing or general chat
-- **Training in Progress**: Model weights update every 5-10 minutes; performance may vary between checkpoints
-- **Scale**: 0.6B parameters - suitable for edge devices but not state-of-the-art for complex reasoning
-- **Experimental**: Trained via decentralized RL swarm; behavior may be less predictable than supervised models
-- **Context Length**: 40K tokens supported but best performance within 4K tokens
+- **Specialized Domain**: Optimized for reasoning/math; may underperform on creative writing
+- **Training in Progress**: Weights update every 5-10 minutes; performance varies
+- **Scale**: 0.6B parameters - suitable for edge but not SOTA for complex reasoning
+- **Experimental**: Decentralized RL training; behavior less predictable than supervised models
+- **Context**: Best performance within 4K tokens (full 40K supported)
 
 ## Update Schedule
 
-| Format | Update Frequency | Trigger |
-|--------|------------------|---------|
-| Safetensors (BF16) | Every 5-10 minutes | Automatic via RL-Swarm training |
-| GGUF variants (all) | Every 1 hour | Automatic conversion from latest checkpoint |
+| Format | Frequency | Trigger |
+|--------|-----------|---------|
+| Safetensors (BF16) | Every 5-10 min | Automatic via RL-Swarm |
+| GGUF (all formats) | Every 1 hour | Auto-conversion pipeline |
 
 **Auto-Conversion Pipeline:**
-- Monitors repo for new training commits
-- Downloads latest `model.safetensors`
-- Converts to F16 GGUF base
-- Quantizes to Q3_K_M, Q4_K_M, Q5_K_M
-- Uploads all formats to repo
+1. Monitors repo for new training commits
+2. Downloads latest `model.safetensors`
+3. Converts to F16 GGUF base
+4. Quantizes to Q3_K_M, Q4_K_M, Q5_K_M
+5. Uploads all formats
 
-Check commit history for exact timestamps of each update.
+Check commit history for exact timestamps.
 
 ## Gensyn RL-Swarm Technical Details
 
-This model is trained using [Gensyn RL-Swarm](https://gensyn.ai), a decentralized reinforcement learning framework:
-
 ### Architecture Components
 
-1. **Game Manager** (`rgym_exp/src/manager.py`): Orchestrates training rounds and swarm coordination
-2. **Trainer** (`rgym_exp/src/trainer.py`): GRPO implementation for policy optimization
-3. **Data Manager** (`rgym_exp/src/data.py`): Handles dataset loading and sampling
-4. **Reward Manager** (`rgym_exp/src/rewards.py`): Computes rewards using judge API
-5. **Coordinator** (`rgym_exp/src/coordinator.py`): Blockchain integration for swarm state
-6. **Communication Backend**: Hivemind DHT for peer-to-peer model sharing
+1. **Game Manager**: Orchestrates training rounds and swarm coordination
+2. **Trainer**: GRPO implementation for policy optimization
+3. **Data Manager**: Dataset loading and weighted sampling
+4. **Reward Manager**: Computes rewards via judge API
+5. **Coordinator**: Blockchain integration for swarm state
+6. **P2P Backend**: Hivemind DHT for model sharing
 
 ### Training Process
 
 ```
 1. Agent joins swarm via P2P network
-2. Coordinator assigns training round via smart contract
+2. Coordinator assigns round via smart contract
 3. Agent samples data from weighted datasets
-4. Model generates responses (2 generations)
-5. Judge API evaluates quality and assigns rewards
+4. Model generates 2 responses
+5. Judge API evaluates and assigns rewards
 6. GRPO updates policy based on rewards
-7. Updated model shared via DHT to swarm
-8. Best model checkpoint saved to HuggingFace
-9. Repeat for next round
+7. Updated model shared via DHT
+8. Best checkpoint saved to HuggingFace
+9. Repeat
 ```
 
 ### Decentralization Benefits
 
-- **Fault Tolerance**: Multiple agents contribute; single node failure doesn't stop training
+- **Fault Tolerance**: Multiple agents; no single point of failure
 - **Diverse Exploration**: Different agents explore different strategies
-- **Collective Intelligence**: Agents learn from each other's experiences
-- **Transparent Verification**: All training rounds verified on-chain
+- **Collective Intelligence**: Agents learn from each other
+- **Transparent**: All rounds verified on-chain
 
 **Swarm Agent:** `tall_tame_panther`  
-**Contract:** SwarmCoordinator v0.4.2  
-**Testnet Explorer:** https://gensyn-testnet.explorer.com
+**Contract:** SwarmCoordinator v0.4.2
 
 ## Technical Specifications
 
 ### Software Stack
 
-- **Training Framework**: Gensyn RL-Swarm v0.4.2
-- **Base Library**: transformers v4.51.3
-- **Communication**: hivemind (P2P backend)
-- **Blockchain**: Web3.py (Gensyn testnet)
-- **Configuration**: Hydra + OmegaConf
+- **Framework**: Gensyn RL-Swarm v0.6.4
+- **Library**: transformers v4.51+
+- **P2P**: hivemind
+- **Blockchain**: Gensyn testnet
+- **Config**: Hydra + OmegaConf
 - **Logging**: WandB integration
 
 ### Hardware Requirements
 
-**Training Node:**
-- GPU: NVIDIA A100 40GB or equivalent (for BF16 training)
-- RAM: 32GB+ system memory
+**Training GPU:**
+- GPU: NVIDIA 4090 24GB+ (BF16 training)
+- RAM: 16GB+
+- Cores: 10+
 - Storage: 50GB SSD
-- Network: High bandwidth for P2P swarm communication
+- Network: High bandwidth for P2P
 
+**Training CPU Optimize:**
+- CPU: INTEL or AMD
+- Cores: 10+
+- RAM: 16GB+
+- Storage: 50GB SSD
+- Network: High bandwidth for P2P
+ 
 **Inference:**
-- Safetensors: 8GB+ VRAM (GPU), 16GB+ RAM (CPU)
-- GGUF Q4_K_M: 4GB RAM (CPU), 2GB VRAM (GPU)
-- GGUF Q3_K_M: 3GB RAM (CPU-only compatible)
+- Safetensors: 8GB VRAM (GPU) / 16GB RAM (CPU)
+- GGUF Q4_K_M: 2GB VRAM (GPU) / 4GB RAM (CPU)
+- GGUF Q3_K_M: 3GB RAM (CPU-only)
+
+## Evaluation
+
+### Training Progress Metrics
+
+| Metric | Value | Target |
+|--------|-------|--------|
+| Completed Rounds | 43,610+ | 100,000 |
+| Training Progress | 43.61% | 100% |
+| Update Frequency | 5-10 min | Continuous |
+
+**Note**: Formal evaluation benchmarks (GSM8K, MATH, etc.) will be added as training progresses. Current metrics track training rounds completed in the decentralized swarm.
 
 ## Reproducibility
 
-To reproduce training results:
+To reproduce training:
 
 1. Clone Gensyn RL-Swarm repository
-2. Install dependencies: `pip install -r requirements.txt`
-3. Configure `rgym_exp/config/rg-swarm.yaml` with your settings
-4. Set environment variables:
-   ```
-   export HUGGINGFACE_ACCESS_TOKEN=<your-token>
-   export MODEL_NAME=Qwen/Qwen3-0.6B
-   export ORG_ID=<your-org-id>
-   export SWARM_CONTRACT=<contract-address>
-   ```
-5. Run: `bash run_rl_swarm.sh`
+2. Install: `pip install -r requirements.txt`
+3. Configure `rgym_exp/config/rg-swarm.yaml`
+4. Configure `rgym_exp/src/datasets.yaml`
+5. Set environment variables:
+```
+export HUGGINGFACE_ACCESS_TOKEN=<token>
+export MODEL_NAME=Qwen/Qwen3-0.6B
+export ORG_ID=<org-id>
+export SWARM_CONTRACT=<contract-address>
+```
+6. Run: `bash run_rl_swarm.sh`
 
-**Note:** Exact reproduction requires same seed (42), dataset configuration, and swarm coordination state.
+**Note**: Exact reproduction requires same seed (42), dataset config, and swarm state.
 
 ## Citation
 
 ```
 @misc{qwen3-gensyn-swarm-2025,
-  author = {0xgr3y},
+  author = {0xgrey},
   title = {Qwen3-0.6B-Gensyn-Swarm: Continuous RL Training on Distributed Swarm},
   year = {2025},
   publisher = {HuggingFace},
-  journal = {HuggingFace Model Hub},
   howpublished = {\url{https://huggingface.co/0xgr3y/Qwen3-0.6B-Gensyn-Swarm-tall_tame_panther}},
   note = {Agent ID: tall\_tame\_panther}
 }
@@ -403,42 +435,33 @@ To reproduce training results:
   title = {Gensyn RL-Swarm: Decentralized Reinforcement Learning Framework},
   author = {Gensyn AI},
   year = {2025},
-  url = {https://gensyn.ai},
-  note = {SwarmCoordinator v0.4.2}
-}
-
-@article{lacoste2019quantifying,
-  title={Quantifying the Carbon Emissions of Machine Learning},
-  author={Lacoste, Alexandre and others},
-  journal={arXiv preprint arXiv:1910.09700},
-  year={2019}
+  url = {https://gensyn.ai}
 }
 ```
 
 ## References
 
-- **arXiv:1910.09700** - ML Carbon Emissions methodology
-- **Gensyn Documentation**: https://docs.gensyn.ai
+- **Gensyn Documentation**: https://docs.gensyn.ai/
+- **Gensyn GitHub**: https://github.com/gensyn-ai
+- **RL-Swarm Contracts**: https://github.com/gensyn-ai/rl-swarm-contracts
 - **Qwen3 Model Card**: https://huggingface.co/Qwen/Qwen3-0.6B
-- **Technical Report**: See `technical_report.pdf` in training repository
+- **arXiv:1910.09700**: ML Carbon Emissions methodology
 
 ## License
 
-Apache 2.0 - See [LICENSE](LICENSE) for details
+Apache 2.0 - See [LICENSE](LICENSE)
 
-## Contact & Support
+## Contact
 
-- **Developer**: 0xgr3y
+- **Developer**: 0xgrey
 - **Agent ID**: tall_tame_panther
-- **Issues**: Open an issue on this repo
 - **Community**: [Gensyn Discord](https://discord.gg/gensyn)
 
 ---
 
-**⚠️ Important Note**: This is a continuously trained model. For reproducibility, always specify the exact commit hash:
+**⚠️ Important**: This is a continuously trained model. For reproducibility, specify commit hash:
 
 ```
-# Download specific checkpoint
 git clone https://huggingface.co/0xgr3y/Qwen3-0.6B-Gensyn-Swarm-tall_tame_panther
 cd Qwen3-0.6B-Gensyn-Swarm-tall_tame_panther
 git checkout <commit-hash>
@@ -453,4 +476,3 @@ git checkout <commit-hash>
 [![Gensyn](https://img.shields.io/badge/Powered%20by-Gensyn%20AI-orange?style=for-the-badge)](https://gensyn.ai)
 
 </div>
-```
