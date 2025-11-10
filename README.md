@@ -4,6 +4,8 @@
 ![Docker](https://img.shields.io/badge/Docker-2CA5E0?style=for-the-badge&logo=docker&logoColor=white)
 ![Huggingface](https://img.shields.io/badge/huggingface-FFD21E?style=for-the-badge&logo=huggingface&logoColor=black)
 
+> Get your HF token https://huggingface.co/settings/tokens
+
 ## Install Docker & Compose → <mark>if not yet</mark>
 > Instal docker is optional, if you not have..try Docker securely
 
