@@ -55,7 +55,7 @@ TZ=Asia/Jakarta
 ```
 
 **Note; example use search your target and copy as name into env file** 
-> `https://huggingface.co/0xgr3y/Qwen3-0.6B-Gensyn-Swarm-tall_tame_panther`
+- https://huggingface.co/0xgr3y/Qwen3-0.6B-Gensyn-Swarm-tall_tame_panther
 
 > Build
 ```
