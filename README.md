@@ -37,6 +37,9 @@ QUANT_TYPES=F16,Q3_K_M,Q4_K_M,Q5_K_M
 TZ=Asia/Jakarta
 ```
 
+**Note; example use search your target and copy as name into env file** 
+> `https://huggingface.co/0xgr3y/Qwen3-0.6B-Gensyn-Swarm-tall_tame_panther`
+
 > Build
 ```
 docker compose up --build -d
