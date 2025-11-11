@@ -1,4 +1,4 @@
-<h1 align="center">GGUF Converter for All Huggingface Store Models with Multiple Quantizations (GGUF-Format)</h1>
+<h1 align="center">GGUF Converter for All Huggingface Hub Models with Multiple Quantizations (GGUF-Format)</h1>
 
 ## Requirements
 ![VPS](https://img.shields.io/badge/VPS-CPU/GPU-232F3E?style=for-the-badge&logo=digitalocean&logoColor=green)
