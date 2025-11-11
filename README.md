@@ -1,5 +1,11 @@
 <h1 align="center">GGUF Converter for All Huggingface Hub Models with Multiple Quantizations (GGUF-Format)</h1>
 
+## Support
+![VERSION](https://img.shields.io/badge/Release-v1.2-orange)
+![GGUF](https://img.shields.io/badge/GGUF-Available-red)
+![Model](https://img.shields.io/badge/🤗%20Hugging%20Face-Model-blue)
+[![License](https://img.shields.io/badge/License-MIT-green)](https://github.com/arcxteam/gguf-convert-model/main/LICENSE-MIT)
+
 ## Requirements
 ![VPS](https://img.shields.io/badge/VPS_Server-232F3E?style=for-the-badge&logo=digitalocean&logoColor=red)
 ![Linux](https://img.shields.io/badge/Linux-FCC624?style=for-the-badge&logo=linux&logoColor=black)
