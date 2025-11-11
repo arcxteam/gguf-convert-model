@@ -7,13 +7,21 @@ services:
     restart: unless-stopped
     network_mode: "host"
     environment:
-      - HUGGINGFACE_ACCESS_TOKEN=${HUGGINGFACE_ACCESS_TOKEN}
+      - HUGGINGFACE_TOKEN=${HUGGINGFACE_TOKEN}
       - REPO_ID=${REPO_ID}
-      - CHECK_INTERVAL=${CHECK_INTERVAL}
-      - TZ=${TZ}
+      - CHECK_INTERVAL=${CHECK_INTERVAL:-3600}
+      - QUANT_TYPES=${QUANT_TYPES:-F16,Q4_K_M,Q5_K_M}
+      - UPLOAD_MODE=${UPLOAD_MODE:-same_repo}
+      - TARGET_REPO=${TARGET_REPO:-}
+      - OUTPUT_DIR=${OUTPUT_DIR:-./output}
+      - BASE_MODEL_TOKENIZER=${BASE_MODEL_TOKENIZER:-}
+      - OUTPUT_PATTERN=${OUTPUT_PATTERN:-{model_name}-{quant}.gguf}
+      - LOCAL_CLEANUP_HOURS=${LOCAL_CLEANUP_HOURS:-24}
+      - TZ=${TZ:-UTC}
     volumes:
       - converter-cache:/app/cache
       - ./logs:/app/logs
+      - ./output:/app/output
     logging:
       driver: "json-file"
       options:
