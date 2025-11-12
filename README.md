@@ -6,10 +6,10 @@
 </p>
 
 <p align="center">
-  <img src="https://img.shields.io/badge/Release-v1.2-yellow" alt="Version">
+  <img src="https://img.shields.io/badge/Release-v1.2-FF0069" alt="Version">
   <img src="https://img.shields.io/badge/GGUF-Available-brightgreen" alt="GGUF">
   <img src="https://img.shields.io/badge/llama.cpp-Compatible-orange" alt="llama.cpp">
-  <img src="https://img.shields.io/badge/🤗%20HuggingFace-Supported-blue" alt="HuggingFace">
+  <img src="https://img.shields.io/badge/🤗 Huggingface-Models-blue" alt="Huggingface">
   <a href="https://github.com/arcxteam/gguf-convert-model/blob/main/LICENSE"><img src="https://img.shields.io/badge/License-MIT-green" alt="License"></a>
 </p>
 
@@ -92,7 +92,7 @@ cd gguf-convert-model
 ```
 
 ### 3. Configure Environment
-> Create & edit configuration file
+> Create edit & save configuration file
 
 ```
 cp .env.example .env
@@ -160,16 +160,16 @@ TZ=Asia/Singapore
 
 | ENV Variable | Required? | When to Change | Default if Empty |
 |--------------|-----------|----------------|------------------|
-| `HUGGINGFACE_TOKEN` | ✅ Yes | Always (your token) | ERROR |
-| `REPO_ID` | ✅ Yes | Always (source model) | ERROR |
-| `CHECK_INTERVAL` | ⚠️ Optional | Default= 0 or Changes | in secs 3600=1h |
-| `QUANT_TYPES` | ⚠️ Optional | Change formats needed | F16,Q4_K_M,Q5_K_M |
-| `UPLOAD_MODE` | ⚠️ Optional | Change based on use case | same_repo |
-| `TARGET_REPO` | ⚠️ Conditional | Only if `new_repo` mode | Same as REPO_ID |
-| `OUTPUT_DIR` | ⚠️ Conditional | Only if `local_only` mode | ./output |
-| `BASE_MODEL_TOKENIZER` | ❌ Optional | Only if auto-detect fails | (empty = auto) |
+| `HUGGINGFACE_TOKEN` | ✅ Yes | Always (your token) | `ERROR` |
+| `REPO_ID` | ✅ Yes | Always (source model) | `ERROR` |
+| `CHECK_INTERVAL` | ⚠️ Optional | Default= 0 or Changes | `in secs 3600=1h` |
+| `QUANT_TYPES` | ⚠️ Optional | Change formats needed | `F16,Q4_K_M,Q5_K_M,more` |
+| `UPLOAD_MODE` | ⚠️ Optional | Change based on use case | default `new_repo` |
+| `TARGET_REPO` | ⚠️ Conditional | Only if `new_repo` mode | Same as `REPO_ID` |
+| `OUTPUT_DIR` | ⚠️ Conditional | Only if `local_only` mode | `./output` |
+| `BASE_MODEL_TOKENIZER` | ❌ Optional | Only if auto-detect fails | `empty = auto` |
 | `OUTPUT_PATTERN` | ❌ Optional | Only if custom naming | `{model_name}-{quant}.gguf` |
-| `LOCAL_CLEANUP_HOURS` | ❌ Optional | Only for `local_only` | 24 |
+| `LOCAL_CLEANUP_HOURS` | ❌ Optional | Only for `local_only` | default `24hour` |
 | `TZ` | ❌ Optional | Change to your timezone | UTC |
 
 ### ✅ Checklist - What to Change
