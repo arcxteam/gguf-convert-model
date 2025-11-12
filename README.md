@@ -1,10 +1,11 @@
 <h1 align="center">GGUF Converter for All Huggingface Hub Models with Multiple Quantizations (GGUF-Format)</h1>
 
 ## Support
-![VERSION](https://img.shields.io/badge/Release-v1.2-orange)
-![GGUF](https://img.shields.io/badge/GGUF-Available-red)
-![Model](https://img.shields.io/badge/🤗%20Hugging%20Face-Model-blue)
-[![License](https://img.shields.io/badge/License-MIT-green)](https://github.com/arcxteam/gguf-convert-model/main/LICENSE-MIT)
+![VERSION](https://img.shields.io/badge/Release-v1.2-yellow)
+![GGUF](https://img.shields.io/badge/GGUF-Available-brightgreen)
+![LLAMA](https://img.shields.io/badge/llama.cpp-Available-orange)
+![Model](https://img.shields.io/badge/🤗%20HuggingFace-Model-blue)
+[![License](https://img.shields.io/badge/License-MIT-green)](https://github.com/arcxteam/gguf-convert-model/blob/main/LICENSE)
 
 ## Requirements
 ![VPS](https://img.shields.io/badge/VPS_Server-232F3E?style=for-the-badge&logo=digitalocean&logoColor=red)
@@ -12,18 +13,10 @@
 ![Docker](https://img.shields.io/badge/Docker-2CA5E0?style=for-the-badge&logo=docker&logoColor=white)
 ![Huggingface](https://img.shields.io/badge/huggingface-FFD21E?style=for-the-badge&logo=huggingface&logoColor=black)
 
-> Get HF token & use mode **WRITE** → `https://huggingface.co/settings/tokens`
 
-### Install Docker & Compose → <mark>if not yet</mark>
-> Instal docker is optional, if you not have..try Docker securely
+## **1. Structure Folder**
 
-```bash
-curl -sSL https://raw.githubusercontent.com/arcxteam/succinct-prover/refs/heads/main/docker.sh | sudo bash
-```
-
-### **1. Structure Folder**
-
-```
+```diff
 gguf-convert-model/
 ├── .env
 ├── .env.example
@@ -46,7 +39,18 @@ gguf-convert-model/
 └── logs/ (auto-created)
 ```
 
-### **2. Setup & Start**
+## **2. Pre-Requirements**
+
+> Get Huggingface API-token mode **WRITE** → `https://huggingface.co/settings/tokens`
+
+### Install Docker & Compose → <mark>if not yet</mark>
+> Instal docker is optional, if you don't have.. try docker `shell` securely
+
+```bash
+curl -sSL https://raw.githubusercontent.com/arcxteam/succinct-prover/refs/heads/main/docker.sh | sudo bash
+```
+
+## **3. Setup Configure**
 
 ```bash
 git clone https://github.com/arcxteam/gguf-convert-model.git
@@ -108,15 +112,53 @@ LOCAL_CLEANUP_HOURS=24
 TZ=Asia/Singapore
 ```
 
-**Note; example use search your target and copy as name into env file** 
-- https://huggingface.co/0xgr3y/Qwen3-0.6B-Gensyn-Swarm-tall_tame_panther
+### 📊 Quick Reference - Use (.ENV)
+
+| ENV Variable | Required? | When to Change | Default if Empty |
+|--------------|-----------|----------------|------------------|
+| `HUGGINGFACE_TOKEN` | ✅ Yes | Always (your token) | ERROR |
+| `REPO_ID` | ✅ Yes | Always (source model) | ERROR |
+| `CHECK_INTERVAL` | ⚠️ Optional | Change based on frequency | 3600 (1 hour) |
+| `QUANT_TYPES` | ⚠️ Optional | Change formats needed | F16,Q4_K_M,Q5_K_M |
+| `UPLOAD_MODE` | ⚠️ Optional | Change based on use case | same_repo |
+| `TARGET_REPO` | ⚠️ Conditional | Only if `new_repo` mode | Same as REPO_ID |
+| `OUTPUT_DIR` | ⚠️ Conditional | Only if `local_only` mode | ./output |
+| `BASE_MODEL_TOKENIZER` | ❌ Optional | Only if auto-detect fails | (empty = auto) |
+| `OUTPUT_PATTERN` | ❌ Optional | Only if custom naming | `{model_name}-{quant}.gguf` |
+| `LOCAL_CLEANUP_HOURS` | ❌ Optional | Only for `local_only` | 24 |
+| `TZ` | ❌ Optional | Change to your timezone | UTC |
+
+### ✅ Checklist - What to Change
+
+### Always Change:
+- ✅ `HUGGINGFACE_TOKEN` → Your personal token
+- ✅ `REPO_ID` → Model to convert
+
+### Usually Change:
+- ⚠️ `CHECK_INTERVAL` → Frequency (or 0 for one-time)
+- ⚠️ `QUANT_TYPES` → Formats you need
+- ⚠️ `UPLOAD_MODE` → Based on use case (see contoh above)
+
+### Change Only If Needed:
+- ❌ `TARGET_REPO` → If using `new_repo` mode
+- ❌ `OUTPUT_DIR` → If using `local_only` mode
+- ❌ `BASE_MODEL_TOKENIZER` → If auto-detect fails
+- ❌ `OUTPUT_PATTERN` → If custom naming wanted
+- ❌ `LOCAL_CLEANUP_HOURS` → If different cleanup time
+- ❌ `TZ` → Your timezone (cosmetic for logs)
+
+### Never Change (Leave Default):
+- ✅ Comments (helpful documentation)
+- ✅ Commented-out options (for reference)
+
+## **4. Starting Running**
 
 > Build
 ```
 docker compose up --build -d
 ```
 
-> Monitor logs
+> Monitor logs & 
 ```
 docker compose logs -f
 ```
