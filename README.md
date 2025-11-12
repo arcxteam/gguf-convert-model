@@ -24,8 +24,8 @@
 - 🔄 **Continuous Monitoring**: Automatically detects and converts new model updates from HuggingFace repositories
 - 🤖 **Auto-Detection**: Intelligent tokenizer detection for 50+ popular model architectures (Qwen, Llama, Mistral, Phi, Gemma, etc.)
 - 📦 **Multiple Quantization**: Supports F16, F32, BF16, and all K-quant formats (Q2_K to Q8_0)
-- 🎯 **Flexible Deployment**: Three upload modes - same repository, new repository, or local-only storage
-- 🧹 **Smart Cleanup**: Automatic temporary file management to prevent storage bloat
+- 🎯 **Flexible Deploy**: Three (3) upload modes - same repository, new repository, or local-only storage
+- 🧹 **Smart Cleanup**: Automatic temporary file management to prevent storage used
 - 🐳 **Docker**: Fully container with optimized build times and resource usage
 - 📊 **Progress Tracking**: Clean, milestone-based logging with colorized console output
 
@@ -98,51 +98,61 @@ cd gguf-convert-model
 cp .env.example .env
 nano .env
 ```
-> Example Config Environment Variable
+> Example config environment variable
 
 ```diff
-# Required Configuration
+# HF token with WRITE permission
 HUGGINGFACE_TOKEN=hf_xxxxxxxx
+
+# Source model repository to convert
++ Example: Qwen/Qwen3-0.6B
 REPO_ID=username/model-name
 
-# Conversion Timer Upload
-+ For one-time converter, set 0
-+ For continuous training, converter set in secs
-CHECK_INTERVAL=3600
+# Use interval in secs
++ Default 0 = only one-time convert, for other commits setup more)
+CHECK_INTERVAL=0
 
-# Quantization (comma-separated)
-+ Format support: F16,BF16,Q2_K,Q2_K_S,Q3_K_S,Q3_K_M,Q3_K_L,Q4_K_S,Q4_K_M,Q4_K_L,Q5_K_S,Q5_K_M,Q5_K_L,Q6_K,Q8_0
+# Output formats (comma-separated, no spaces)
+# Available: F16,BF16,F32,Q2_K,Q2_K_S,Q3_K_S,Q3_K_M,Q3_K_L,Q4_K_S,Q4_K_M,Q4_K_L,Q5_K_S,Q5_K_M,Q5_K_L,Q6_K,Q8_0
 + Recommended: F16,Q4_K_M,Q5_K_M,Q6_K
-QUANT_TYPES=F16,Q4_K_M,Q5_K_M,Q6_K
+QUANT_TYPES=F16,Q3_K_M,Q4_K_M,Q5_K_M,Q6_K
 
-# Upload Mode (Pick ONE)
-+ Option 1: same_repo - (own-repo) Upload GGUF files to the same repo as source model
+# ========================================
+# UPLOAD MODE - Choose ONE option below
+# ========================================
+
+# OPTION 1: same_repo
+# Upload to the same repository as own source model
++ Use this only YOUR OWN models with WRITE access
 UPLOAD_MODE=same_repo
 
-+ Option 2: new_repo - (create own-repo) Upload to a separate GGUF-specific repo
-+ Requires: Write access to TARGET_REPO will auto-create if not exists
+# OPTION 2: new_repo
+# TARGET_REPO will be auto-generated as: username/ModelName-GGUF
++ Leave TARGET_REPO empty for auto (recommended)
++ Or manually specify: TARGET_REPO=your-username/custom-name-GGUF
 UPLOAD_MODE=new_repo
-TARGET_REPO=username/model-name-GGUF
+TARGET_REPO=
 
-+ Option 3: local_only - Save to local folder, no HuggingFace upload
-+ Files saved to OUTPUT_DIR with auto-cleanup after 24 hours
+# OPTION 3: local_only
++ Save to local directory only (no upload hugging)
++ Files auto-delete after LOCAL_CLEANUP_HOURS
 UPLOAD_MODE=local_only
 OUTPUT_DIR=./output
 
-# Optional: Base Model for Tokenizer
-+ If model doesn't have complete tokenizer, specify base model
-+ Example for input: Qwen/Qwen3-0.6B
-- Leave empty to use auto-detection
+# Only set if auto-detection fails (default)
++ Example: Qwen/Qwen3-0.6B
 BASE_MODEL_TOKENIZER=
 
-# Optional: Output Filename Pattern
-+ Placeholders outputs: → Qwen3-0.6B-Q4_K_M.gguf
+# Output filename pattern (default)
+# Placeholders: {model_name} = extracted base name, {quant} = format type
++ Result example: Qwen3-0.6B-Instruct-Q4_K_M.gguf
 OUTPUT_PATTERN={model_name}-{quant}.gguf
 
-# Optional: Local Output Cleanup
+# Auto-cleanup hours (default)
++ Setup you need local_only mode
 LOCAL_CLEANUP_HOURS=24
 
-# Timezone Up to You
+# Timezone
 TZ=Asia/Singapore
 ```
 
@@ -152,7 +162,7 @@ TZ=Asia/Singapore
 |--------------|-----------|----------------|------------------|
 | `HUGGINGFACE_TOKEN` | ✅ Yes | Always (your token) | ERROR |
 | `REPO_ID` | ✅ Yes | Always (source model) | ERROR |
-| `CHECK_INTERVAL` | ⚠️ Optional | Change based on frequency | 3600 (1 hour) |
+| `CHECK_INTERVAL` | ⚠️ Optional | Default= 0 or Changes | in secs 3600=1h |
 | `QUANT_TYPES` | ⚠️ Optional | Change formats needed | F16,Q4_K_M,Q5_K_M |
 | `UPLOAD_MODE` | ⚠️ Optional | Change based on use case | same_repo |
 | `TARGET_REPO` | ⚠️ Conditional | Only if `new_repo` mode | Same as REPO_ID |
@@ -171,7 +181,7 @@ TZ=Asia/Singapore
 **Usually Change:**
 - ⚠️ `CHECK_INTERVAL` → Frequency (or 0 for one-time)
 - ⚠️ `QUANT_TYPES` → Formats you need
-- ⚠️ `UPLOAD_MODE` → Based on use case (see contoh above)
+- ⚠️ `UPLOAD_MODE` → Based on use case
 
 **Change Only If Needed:**
 - ❌ `TARGET_REPO` → If using `new_repo` mode
@@ -179,7 +189,7 @@ TZ=Asia/Singapore
 - ❌ `BASE_MODEL_TOKENIZER` → If auto-detect fails
 - ❌ `OUTPUT_PATTERN` → If custom naming wanted
 - ❌ `LOCAL_CLEANUP_HOURS` → If different cleanup time
-- ❌ `TZ` → Your timezone (cosmetic for logs)
+- ❌ `TZ` → Your timezone (up to you)
 
 **Never Change (Leave Default):**
 - ✅ Comments (helpful documentation)
