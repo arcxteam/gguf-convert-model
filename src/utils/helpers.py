@@ -165,19 +165,27 @@ def download_model(config):
         log.error(f"Download failed: {e}")
         return False
 
-
-def convert_to_f16(config, output_file):
-    """Convert model to F16 GGUF format"""
-    log.info("Converting to F16 GGUF...")
+def convert_to_gguf(config, output_file, output_type="f16"):
+    """Convert model to GGUF format (supports F16, F32, BF16)"""
+    log.info(f"Converting to {output_type.upper()} GGUF...")
+    
+    # Map quant type to llama.cpp output type
+    type_map = {
+        "F16": "f16",
+        "F32": "f32",
+        "BF16": "bf16"
+    }
+    
+    llama_type = type_map.get(output_type.upper(), output_type.lower())
     
     cmd = [
         "python", str(config.convert_script),
         str(config.temp_dir),
-        "--outtype", "f16",
+        "--outtype", llama_type,
         "--outfile", output_file
     ]
     
-    tracker = ProgressTracker("Conversion")
+    tracker = ProgressTracker(f"Conversion {output_type.upper()}")
     tracker.start_timer()
     
     def track():
@@ -188,7 +196,7 @@ def convert_to_f16(config, output_file):
     thread = threading.Thread(target=track, daemon=True)
     thread.start()
     
-    success, _ = run_command(cmd, "F16 conversion", config.conversion_timeout)
+    success, _ = run_command(cmd, f"{output_type} conversion", config.conversion_timeout)
     
     if success and Path(output_file).exists():
         size_mb = Path(output_file).stat().st_size / 1024 / 1024
