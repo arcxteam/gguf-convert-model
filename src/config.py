@@ -1,8 +1,8 @@
 import os
 import json
+import re
 from pathlib import Path
 from typing import Optional
-
 
 class Config:
     """Configuration with automatic base model detection"""
@@ -97,63 +97,116 @@ class Config:
         if not self.hf_token or not self.repo_id:
             raise ValueError("HUGGINGFACE_TOKEN and REPO_ID are required")
         
-        # Conversion settings
         self.check_interval = int(os.getenv("CHECK_INTERVAL", "3600"))
         quant_str = os.getenv("QUANT_TYPES", "F16,Q4_K_M,Q5_K_M")
         self.quant_types = [q.strip() for q in quant_str.split(",") if q.strip()]
         
-        # Validate quants
         invalid = [q for q in self.quant_types if q not in self.VALID_QUANTS]
         if invalid:
             raise ValueError(f"Invalid quant types: {invalid}")
         
-        # Upload mode configuration
         self.upload_mode = os.getenv("UPLOAD_MODE", "same_repo").lower()
         if self.upload_mode not in ["same_repo", "new_repo", "local_only"]:
             raise ValueError(f"Invalid UPLOAD_MODE: {self.upload_mode}")
         
-        # Target repo for upload
-        self.target_repo = os.getenv("TARGET_REPO", "").strip() or self.repo_id
-        
-        # Auto-detect or manual base model
+        self.target_repo = self._generate_target_repo()
         self.base_model_tokenizer = self._detect_base_model()
         
-        # Optional settings
         self.output_pattern = os.getenv("OUTPUT_PATTERN", "{model_name}-{quant}.gguf")
         self.conversion_timeout = int(os.getenv("CONVERSION_TIMEOUT", "3600"))
         self.local_cleanup_hours = int(os.getenv("LOCAL_CLEANUP_HOURS", "24"))
         
-        # Paths
         self.llama_cpp_path = Path(os.getenv("LLAMA_CPP_PATH", "/app/llama.cpp"))
         self.temp_dir = Path(os.getenv("TEMP_DIR", "/tmp/gguf_conversion"))
         self.cache_dir = Path(os.getenv("CACHE_DIR", "/app/cache"))
         self.log_dir = Path(os.getenv("LOG_DIR", "logs"))
         self.output_dir = Path(os.getenv("OUTPUT_DIR", "./output"))
         
-        # Create directories
         self.temp_dir.mkdir(parents=True, exist_ok=True)
         self.cache_dir.mkdir(parents=True, exist_ok=True)
         self.log_dir.mkdir(parents=True, exist_ok=True)
         if self.upload_mode == "local_only":
             self.output_dir.mkdir(parents=True, exist_ok=True)
         
-        # Suppress HF output
         os.environ["HF_HUB_DISABLE_PROGRESS_BARS"] = "1"
         os.environ["HF_HUB_DISABLE_TELEMETRY"] = "1"
     
+    def _extract_base_model_name(self, full_name: str) -> str:
+        """
+        Universal extraction - works for ANY model name pattern.
+        
+        Pattern: Extract ModelName-Version-Variant (first 3 components)
+        
+        Examples:
+        - Qwen2.5-0.5B-Instruct-Gensyn-Swarm-xxx → Qwen2.5-0.5B-Instruct
+        - Llama-3.1-8B-finetune-custom → Llama-3.1-8B
+        - Mistral-7B-v0.1-trained → Mistral-7B-v0.1
+        """
+        
+        # Remove common training/finetune suffixes (universal patterns)
+        patterns_to_remove = [
+            r'-finetune.*',
+            r'-finetuned.*',
+            r'-trained.*',
+            r'-custom.*',
+            r'-chat$',
+            r'-v\d+$',  # version at end only
+        ]
+        
+        cleaned = full_name
+        for pattern in patterns_to_remove:
+            cleaned = re.sub(pattern, '', cleaned, flags=re.IGNORECASE)
+        
+        # Remove training identifiers (animal names, swarm names, etc)
+        # Pattern: -word_word_word at end
+        cleaned = re.sub(r'-\w+_\w+_\w+$', '', cleaned)
+        
+        # Extract base: ModelName-Version-Variant (3 components)
+        # Matches: Qwen2.5-0.5B-Instruct, Llama-3.1-8B, Mistral-7B-v0.1
+        pattern = r'^([A-Za-z0-9]+(?:\.\d+)?-\d+(?:\.\d+)?[A-Z]?(?:-(?:Instruct|Base|Chat))?)'
+        match = re.match(pattern, cleaned)
+        
+        if match:
+            return match.group(1)
+        
+        # Fallback: first 3 dash-separated parts
+        parts = cleaned.split('-')
+        if len(parts) >= 3:
+            return '-'.join(parts[:3])
+        
+        return cleaned[:50]
+    
+    def _generate_target_repo(self) -> str:
+        """Auto-generate target repository"""
+        
+        manual_target = os.getenv("TARGET_REPO", "").strip()
+        if manual_target:
+            print(f"  🔧 Manual target repo: {manual_target}")
+            return manual_target
+        
+        if self.upload_mode != "new_repo":
+            return self.repo_id
+        
+        username = self.repo_id.split('/')[0]
+        full_model_name = self.repo_id.split('/')[-1]
+        base_name = self._extract_base_model_name(full_model_name)
+        
+        target = f"{username}/{base_name}-GGUF"
+        print(f"  🤖 Auto-generated target repo: {target}")
+        
+        return target
+    
     def _detect_base_model(self) -> Optional[str]:
-        """Auto-detect base model from architecture or use manual override"""
-        # 1. Manual override
+        """Auto-detect base model"""
         manual = os.getenv("BASE_MODEL_TOKENIZER", "").strip()
         if manual:
             print(f"  🔧 Manual base model: {manual}")
             return manual
         
-        # 2. Auto-detect from config.json
         try:
             from huggingface_hub import hf_hub_download
             
-            print(f"  🔍 Auto-detecting base model for {self.repo_id}...")
+            print(f"  🔍 Auto-detecting base model...")
             config_path = hf_hub_download(
                 repo_id=self.repo_id,
                 filename="config.json",
@@ -168,34 +221,32 @@ class Config:
             
             if arch in self.BASE_MODEL_MAPPING:
                 base = self.BASE_MODEL_MAPPING[arch]
-                print(f"  ✅ Auto-detected: {base} (arch: {arch})")
+                print(f"  ✅ Auto-detected: {base}")
                 return base
             else:
-                print(f"  ⚠️  Unknown architecture: {arch}")
+                print(f"  ⚠️  Unknown arch: {arch}")
         
         except Exception as e:
-            print(f"  ⚠️  Auto-detection failed: {e}")
+            print(f"  ⚠️  Auto-detect failed: {e}")
         
-        print(f"     Will use model's own tokenizer")
+        print(f"     Using model's own tokenizer")
         return None
     
     @property
     def model_name(self) -> str:
-        """Extract model name from repo_id"""
-        return self.repo_id.split("/")[-1]
+        """Clean model name for filename"""
+        full_name = self.repo_id.split("/")[-1]
+        return self._extract_base_model_name(full_name)
     
     @property
     def convert_script(self) -> Path:
-        """Path to llama.cpp convert script"""
         return self.llama_cpp_path / "convert_hf_to_gguf.py"
     
     @property
     def quantize_binary(self) -> Path:
-        """Path to llama-quantize binary"""
         return self.llama_cpp_path / "build/bin/llama-quantize"
     
     def get_output_filename(self, quant_type: str) -> str:
-        """Generate output filename"""
         return self.output_pattern.format(
             model_name=self.model_name,
             quant=quant_type
@@ -203,5 +254,4 @@ class Config:
     
     @property
     def valid_quants(self):
-        """Return valid quantization types"""
         return self.VALID_QUANTS
