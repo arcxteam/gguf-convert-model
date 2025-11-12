@@ -3,13 +3,12 @@
 import sys
 import time
 from pathlib import Path
-
 from src.config import Config
 from src.utils import (
     Logger,
     check_for_updates,
     download_model,
-    convert_to_f16,
+    convert_to_gguf,
     quantize_model,
     upload_to_hf,
     cleanup_temp
@@ -18,37 +17,62 @@ from src.utils import (
 log = Logger()
 
 def convert_and_upload(config):
-    """Main conversion pipeline"""
-    log.section("Starting GGUF Conversion Pipeline")
+    """Main conversion pipeline with full format support"""
+    log.section("Starting GGUF LLMs Conversion Pipeline")
     
-    base_gguf = config.get_output_filename("F16")
+    # Non-quantized formats (F16, F32, BF16)
+    non_quant_formats = {"F16", "F32", "BF16"}
+    # Determine base format for quantization
+    base_format = None
+    base_file = None
+    
+    for fmt in config.quant_types:
+        if fmt in non_quant_formats:
+            base_format = fmt
+            break
+    
+    # default to F16
+    if not base_format:
+        base_format = "F16"
+        log.warning("No base format (F16/F32/BF16) specified, using F16 as base")
+    
+    base_file = config.get_output_filename(base_format)
     try:
         # Step 1: Download
         if not download_model(config):
             return False
         
-        # Step 2: Convert to F16
-        if not convert_to_f16(config, base_gguf):
+        # Step 2: Convert to base format
+        if not convert_to_gguf(config, base_file, base_format):
             return False
         
-        # Step 3: Upload/Save F16
-        upload_to_hf(config, base_gguf, "🟢 Auto-update: GGUF F16")
+        # Step 3: Upload/Save base format
+        upload_to_hf(config, base_file, f"🟢 Auto-update: GGUF {base_format}")
         
-        # Step 4: Quantize and upload/save
+        # Step 4: Process all requested formats
         for quant in config.quant_types:
-            if quant == "F16":
+            if quant == base_format:
                 continue
             
+            # Non-quantized formats (F16, F32, BF16)
+            if quant in non_quant_formats:
+                output_file = config.get_output_filename(quant)
+                if convert_to_gguf(config, output_file, quant):
+                    upload_to_hf(config, output_file, f"🟢 Auto-update: GGUF {quant}")
+                    if config.upload_mode != "local_only":
+                        Path(output_file).unlink()
+                continue
+            
+            # Quantized formats (Q2_K, Q3_K_M, etc.)
             if quant not in config.valid_quants:
                 log.warning(f"Skipping invalid quant: {quant}")
                 continue
             
             output_file = config.get_output_filename(quant)
             
-            if quantize_model(config, base_gguf, output_file, quant):
+            if quantize_model(config, base_file, output_file, quant):
                 upload_to_hf(config, output_file, f"🟢 Auto-update: GGUF {quant}")
                 
-                # Delete after upload (for HF modes)
                 if config.upload_mode != "local_only":
                     Path(output_file).unlink()
         
@@ -61,24 +85,21 @@ def convert_and_upload(config):
     
     finally:
         log.info("Cleaning up temporary files...")
-        
-        # Cleanup temp model download
         cleanup_temp(config.temp_dir)
         
-        # Cleanup base F16 (for HF modes only)
-        if config.upload_mode != "local_only" and Path(base_gguf).exists():
-            Path(base_gguf).unlink()
+        if base_file and config.upload_mode != "local_only" and Path(base_file).exists():
+            Path(base_file).unlink()
 
 
 def main():
-    """Main loop"""
+    """Main loop bru"""
     try:
         config = Config()
     except ValueError as e:
         log.error(str(e))
         sys.exit(1)
     
-    # Banner
+    # Banner simple
     log.section("GGUF LLMs Auto-Converter v1.2 by Greyscope&Co")
     log.info(f"Repository: {config.repo_id}")
     log.info(f"Upload Mode: {config.upload_mode}")
@@ -87,18 +108,30 @@ def main():
         log.info(f"Target Repo: {config.target_repo}")
     elif config.upload_mode == "local_only":
         log.info(f"Output Directory: {config.output_dir}")
-        log.info(f"Auto-cleanup: {config.local_cleanup_hours} hours")
+        log.info(f"Auto-cleanup: {config.local_cleanup_hours}h")
     
-    log.info(f"Check Interval: {config.check_interval}s ({config.check_interval/60:.1f} min)")
+    if config.check_interval > 0:
+        log.info(f"Check Interval: {config.check_interval}s ({config.check_interval/60:.1f} min)")
+    else:
+        log.info("Check Interval: Disabled (one-time conversion)")
+    
     log.info(f"Output Formats: {', '.join(config.quant_types)}")
     
     if config.base_model_tokenizer:
         log.info(f"Base Tokenizer: {config.base_model_tokenizer}")
     else:
-        log.info("Base Tokenizer: Auto-detect or model's own")
+        log.info("Base Tokenizer: Auto-detect")
     
     print()
     
+    # One-time CHECK_INTERVAL=0
+    if config.check_interval <= 0:
+        log.warning("One-time conversion mode (CHECK_INTERVAL=0)")
+        convert_and_upload(config)
+        log.success("Conversion complete. Exiting.")
+        sys.exit(0)
+    
+    # Continuous monitoring mode
     last_sha = None
     idle_count = 0
     
@@ -112,7 +145,7 @@ def main():
                 
                 if convert_and_upload(config):
                     last_sha = current_sha
-                    log.info("⏳ Waiting for next update...")
+                    log.info("🕗 Waiting for next update...")
                 else:
                     log.warning("Conversion failed, will retry")
             else:
@@ -126,8 +159,8 @@ def main():
             time.sleep(config.check_interval)
         
         except KeyboardInterrupt:
-            log.info("\nShutdown signal received")
-            log.success("Goodbye!")
+            log.info("\n🔴 Shutdown signal received")
+            log.success("🔵 Say Goodbye!")
             break
         
         except Exception as e:
