@@ -30,7 +30,7 @@ einops==0.8.0
 # Additional Utilities
 tqdm==4.67.1
 packaging==24.2
-filelock==3.16.1
+filelock==3.20.3
 fsspec==2024.10.0
 pyyaml==6.0.2
 typing-extensions==4.12.2
