@@ -7,7 +7,7 @@ colorama==0.4.6
 requests==2.32.4
 
 # Critical Tokenizer Support
-sentencepiece==0.2.0
+sentencepiece==0.2.1
 protobuf==5.29.3
 tokenizers==0.21.0
 tiktoken==0.8.0
