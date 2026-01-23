@@ -8,7 +8,7 @@ requests==2.32.4
 
 # Critical Tokenizer Support
 sentencepiece==0.2.0
-protobuf==5.29.3
+protobuf==7.34.0rc1
 tokenizers==0.21.0
 tiktoken==0.8.0
 regex==2024.11.6
